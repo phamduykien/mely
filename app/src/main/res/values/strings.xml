@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Mêly Sleep</string>
+    <string name="rain_title">Tiếng Mưa</string>
+    <string name="wind_title">Tiếng Gió</string>
+    <string name="crickets_title">Dế Đồng Quê</string>
+    <string name="noise_title">Âm Thanh Noise</string>
+    <string name="notification_channel_name">Mêly Sleep Playback</string>
+    <string name="notification_channel_desc">Điều khiển âm thanh phát trong nền</string>
+</resources>
