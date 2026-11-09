@@ -7,7 +7,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -17,13 +16,25 @@ import com.mely.sleep.ui.theme.*
 
 val SAMPLE_PRESETS = listOf(
     Preset(
-        name = "Đêm Mưa Rào",
-        iconEmoji = "🌧️",
+        name = "Đêm Mưa Sấm Xa",
+        iconEmoji = "⛈️",
         volumes = mapOf(
-            SoundType.RAIN to 0.85f,
-            SoundType.WIND to 0.40f,
+            SoundType.RAIN to 0.80f,
+            SoundType.THUNDER to 0.55f,
+            SoundType.WIND to 0.35f,
             SoundType.CRICKETS to 0.00f,
             SoundType.NOISE to 0.15f
+        )
+    ),
+    Preset(
+        name = "Mưa Rơi Trên Lá",
+        iconEmoji = "🌧️",
+        volumes = mapOf(
+            SoundType.RAIN to 0.75f,
+            SoundType.THUNDER to 0.00f,
+            SoundType.WIND to 0.25f,
+            SoundType.CRICKETS to 0.20f,
+            SoundType.NOISE to 0.10f
         )
     ),
     Preset(
@@ -33,6 +44,7 @@ val SAMPLE_PRESETS = listOf(
             SoundType.CRICKETS to 0.75f,
             SoundType.WIND to 0.50f,
             SoundType.RAIN to 0.00f,
+            SoundType.THUNDER to 0.00f,
             SoundType.NOISE to 0.10f
         )
     ),
@@ -42,8 +54,9 @@ val SAMPLE_PRESETS = listOf(
         volumes = mapOf(
             SoundType.NOISE to 0.65f,
             SoundType.RAIN to 0.45f,
-            SoundType.WIND to 0.25f,
-            SoundType.CRICKETS to 0.15f
+            SoundType.THUNDER to 0.25f,
+            SoundType.WIND to 0.20f,
+            SoundType.CRICKETS to 0.10f
         )
     ),
     Preset(
@@ -53,6 +66,7 @@ val SAMPLE_PRESETS = listOf(
             SoundType.WIND to 0.80f,
             SoundType.CRICKETS to 0.40f,
             SoundType.RAIN to 0.15f,
+            SoundType.THUNDER to 0.00f,
             SoundType.NOISE to 0.00f
         )
     ),
@@ -61,6 +75,7 @@ val SAMPLE_PRESETS = listOf(
         iconEmoji = "🔇",
         volumes = mapOf(
             SoundType.RAIN to 0.00f,
+            SoundType.THUNDER to 0.00f,
             SoundType.WIND to 0.00f,
             SoundType.CRICKETS to 0.00f,
             SoundType.NOISE to 0.00f

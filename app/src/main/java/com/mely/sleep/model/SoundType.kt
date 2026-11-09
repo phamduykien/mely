@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Thunderstorm
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -19,12 +20,20 @@ enum class SoundType(
     val defaultVolume: Float
 ) {
     RAIN(
-        title = "Tiếng Mưa",
-        subtitle = "Mưa rào êm dịu, vỗ về giấc ngủ",
+        title = "Mưa Rơi Trên Lá",
+        subtitle = "Mưa rơi chậm rãi, lộp độp nhẹ trên cành lá",
         rawResId = R.raw.rain,
         icon = Icons.Default.WaterDrop,
         accentColor = Color(0xFF38BDF8), // Soft sky blue
-        defaultVolume = 0.6f
+        defaultVolume = 0.65f
+    ),
+    THUNDER(
+        title = "Tiếng Sấm Xa",
+        subtitle = "Tiếng sấm rền trầm ấm vọng lại từ xa",
+        rawResId = R.raw.thunder,
+        icon = Icons.Default.Thunderstorm,
+        accentColor = Color(0xFFFACC15), // Warm lightning gold
+        defaultVolume = 0.45f
     ),
     WIND(
         title = "Tiếng Gió",
@@ -32,7 +41,7 @@ enum class SoundType(
         rawResId = R.raw.wind,
         icon = Icons.Default.Air,
         accentColor = Color(0xFFA78BFA), // Soft purple
-        defaultVolume = 0.4f
+        defaultVolume = 0.40f
     ),
     CRICKETS(
         title = "Dế Đồng Quê",
@@ -40,7 +49,7 @@ enum class SoundType(
         rawResId = R.raw.crickets,
         icon = Icons.Default.BugReport,
         accentColor = Color(0xFF4ADE80), // Soft meadow green
-        defaultVolume = 0.5f
+        defaultVolume = 0.50f
     ),
     NOISE(
         title = "Âm Thanh Noise",
@@ -48,7 +57,7 @@ enum class SoundType(
         rawResId = R.raw.noise,
         icon = Icons.Default.GraphicEq,
         accentColor = Color(0xFFFB923C), // Warm orange
-        defaultVolume = 0.3f
+        defaultVolume = 0.30f
     )
 }
 
