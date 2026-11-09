@@ -245,29 +245,27 @@ class SleepAudioService : Service() {
         stopSelf()
     }
 
-    /**
-     * Slider dragging calls this continuously:
-     * 1. Updates mixer volume immediately (real-time audio response, 0 lag).
-     * 2. Updates state flow.
-     * 3. Debounces notification update so dragging doesn't overwhelm binder IPC.
-     */
     fun setSoundVolume(type: SoundType, volume: Float) {
         val updated = _volumes.value.toMutableMap()
         val clamped = volume.coerceIn(0f, 1f)
         updated[type] = clamped
         _volumes.value = updated
 
-        // If user drags slider up from 0 while muted, automatically unmute so sound is heard
+        // If user drags slider up, automatically unmute
         if (clamped > 0.01f && _muted.value[type] == true) {
             val mutedCopy = _muted.value.toMutableMap()
             mutedCopy[type] = false
+            _muted.value = mutedCopy
+        } else if (clamped < 0.01f) {
+            val mutedCopy = _muted.value.toMutableMap()
+            mutedCopy[type] = true
             _muted.value = mutedCopy
         }
 
         val effective = if (_muted.value[type] == true) 0f else clamped
         audioMixer.updateVolume(type, effective, _isPlaying.value)
 
-        // Debounce notification update (500ms)
+        // Debounce notification updates
         if (_isPlaying.value) {
             notifyDebounceJob?.cancel()
             notifyDebounceJob = serviceScope.launch {
@@ -278,18 +276,15 @@ class SleepAudioService : Service() {
         }
     }
 
-    /**
-     * Clicking speaker icon toggles mute/unmute for that sound immediately.
-     */
     fun toggleMute(type: SoundType) {
         val updatedMuted = _muted.value.toMutableMap()
-        val isCurrentlyMuted = updatedMuted[type] ?: false
-        val newMuted = !isCurrentlyMuted
+        val isCurrentlyOff = (updatedMuted[type] == true) || ((_volumes.value[type] ?: 0f) < 0.01f)
+        val newMuted = !isCurrentlyOff
         updatedMuted[type] = newMuted
         _muted.value = updatedMuted
 
-        // If unmuting but volume was 0%, restore to default volume so sound is heard immediately
         val volMap = _volumes.value.toMutableMap()
+        // If turning on and volume was 0%, restore default volume so sound is heard immediately
         if (!newMuted && (volMap[type] ?: 0f) < 0.05f) {
             volMap[type] = type.defaultVolume
             _volumes.value = volMap
@@ -304,20 +299,16 @@ class SleepAudioService : Service() {
         }
     }
 
-    /**
-     * Applying a preset ONLY updates the slider values below.
-     * Does NOT force play if the app is paused.
-     * If playing, the audio updates in real time to match the preset sliders.
-     */
     fun applyPreset(presetMap: Map<SoundType, Float>) {
         val currentVols = _volumes.value.toMutableMap()
         val currentMuted = _muted.value.toMutableMap()
 
         for ((type, vol) in presetMap) {
             currentVols[type] = vol
-            // If preset specifies volume > 0, ensure it is unmuted
             if (vol > 0.01f) {
                 currentMuted[type] = false
+            } else {
+                currentMuted[type] = true
             }
             val effective = if (currentMuted[type] == true) 0f else vol
             audioMixer.updateVolume(type, effective, _isPlaying.value)
@@ -325,7 +316,6 @@ class SleepAudioService : Service() {
         _volumes.value = currentVols
         _muted.value = currentMuted
 
-        // Do NOT call play() if paused! Only update notification if currently playing.
         if (_isPlaying.value) {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.notify(NOTIFICATION_ID, buildNotification(true))

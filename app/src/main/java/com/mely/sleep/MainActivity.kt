@@ -22,18 +22,19 @@ import com.mely.sleep.ui.theme.MelySleepTheme
 
 class MainActivity : ComponentActivity() {
 
-    private var sleepService: SleepAudioService? = null
+    // Must be a Compose State so that when service connects, Compose recomposes immediately!
+    private val sleepServiceState = mutableStateOf<SleepAudioService?>(null)
     private var isBound = false
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             val binder = service as SleepAudioService.LocalBinder
-            sleepService = binder.getService()
+            sleepServiceState.value = binder.getService()
             isBound = true
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
-            sleepService = null
+            sleepServiceState.value = null
             isBound = false
         }
     }
@@ -64,17 +65,16 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MelySleepTheme {
-                val service = sleepService
+                val service = sleepServiceState.value
 
-                // Observe service states or default states
-                val isPlaying by (service?.isPlaying?.collectAsState()
-                    ?: remember { mutableStateOf(false) })
-                val volumes by (service?.volumes?.collectAsState()
-                    ?: remember { mutableStateOf(SoundType.values().associateWith { it.defaultVolume }) })
-                val muted by (service?.muted?.collectAsState()
-                    ?: remember { mutableStateOf(SoundType.values().associateWith { false }) })
-                val timerSecondsLeft by (service?.timerSecondsLeft?.collectAsState()
-                    ?: remember { mutableStateOf<Long?>(null) })
+                // If service is connected, observe from service StateFlows.
+                // Otherwise fallback to initial defaults until service connects.
+                val isPlaying = service?.isPlaying?.collectAsState()?.value ?: false
+                val volumes = service?.volumes?.collectAsState()?.value
+                    ?: remember { SoundType.values().associateWith { it.defaultVolume } }
+                val muted = service?.muted?.collectAsState()?.value
+                    ?: remember { SoundType.values().associateWith { false } }
+                val timerSecondsLeft = service?.timerSecondsLeft?.collectAsState()?.value
 
                 SleepScreen(
                     isPlaying = isPlaying,
@@ -82,23 +82,27 @@ class MainActivity : ComponentActivity() {
                     muted = muted,
                     timerSecondsLeft = timerSecondsLeft,
                     onTogglePlay = {
-                        val s = sleepService ?: return@SleepScreen
-                        if (isPlaying) s.pause() else s.play()
+                        val s = sleepServiceState.value ?: return@SleepScreen
+                        if (s.isPlaying.value) {
+                            s.pause()
+                        } else {
+                            s.play()
+                        }
                     },
                     onVolumeChange = { soundType, volume ->
-                        sleepService?.setSoundVolume(soundType, volume)
+                        sleepServiceState.value?.setSoundVolume(soundType, volume)
                     },
                     onToggleMute = { soundType ->
-                        sleepService?.toggleMute(soundType)
+                        sleepServiceState.value?.toggleMute(soundType)
                     },
                     onSelectPreset = { preset: Preset ->
-                        sleepService?.applyPreset(preset.volumes)
+                        sleepServiceState.value?.applyPreset(preset.volumes)
                     },
                     onSetTimer = { minutes ->
-                        sleepService?.setTimer(minutes)
+                        sleepServiceState.value?.setTimer(minutes)
                     },
                     onCancelTimer = {
-                        sleepService?.cancelTimer()
+                        sleepServiceState.value?.cancelTimer()
                     }
                 )
             }
