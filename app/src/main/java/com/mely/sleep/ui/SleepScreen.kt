@@ -2,6 +2,7 @@ package com.mely.sleep.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -18,9 +19,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mely.sleep.R
 import com.mely.sleep.model.Preset
 import com.mely.sleep.model.SoundType
 import com.mely.sleep.ui.components.PresetChipsRow
@@ -205,6 +209,56 @@ fun SleepScreen(
                             fontWeight = FontWeight.Medium,
                             color = IndigoLight
                         )
+                    }
+                }
+            }
+
+            // Serene Sleeping Woman Banner
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(115.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.app_icon),
+                            contentDescription = "Người phụ nữ ngủ ngon",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .width(115.dp)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp))
+                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = "Giấc Ngủ An Nhiên",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary,
+                                    fontSize = 16.sp
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Hòa quyện âm thanh mưa, gió, côn trùng & noise để ru êm tâm trí.",
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp
+                                )
+                            )
+                        }
                     }
                 }
             }
