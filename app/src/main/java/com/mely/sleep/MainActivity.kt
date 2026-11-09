@@ -99,9 +99,6 @@ class MainActivity : ComponentActivity() {
                     },
                     onCancelTimer = {
                         sleepService?.cancelTimer()
-                    },
-                    onStopAll = {
-                        sleepService?.stopPlayback()
                     }
                 )
             }

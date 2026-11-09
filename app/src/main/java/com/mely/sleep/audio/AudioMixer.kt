@@ -19,28 +19,24 @@ class AudioMixer(private val context: Context) {
 
     private val afChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         when (focusChange) {
-            AudioManager.AUDIOFOCUS_LOSS -> {
-                pauseAll()
-            }
+            AudioManager.AUDIOFOCUS_LOSS,
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
                 pauseAll()
             }
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                // Lower volume to 30%
                 scaleAllVolumes(0.3f)
             }
             AudioManager.AUDIOFOCUS_GAIN -> {
-                // Restore volume
                 scaleAllVolumes(1.0f)
             }
         }
     }
 
-    private var currentVolumes = ConcurrentHashMap<SoundType, Float>()
+    private val currentVolumes = ConcurrentHashMap<SoundType, Float>()
     private var volumeScale = 1.0f
 
     init {
-        // Preload media players for all sound types
+        // Pre-create and prepare players for all sound types
         for (soundType in SoundType.values()) {
             try {
                 val mp = MediaPlayer.create(context, soundType.rawResId).apply {
@@ -101,40 +97,45 @@ class AudioMixer(private val context: Context) {
         hasAudioFocus = false
     }
 
+    /**
+     * Start playing all players looping continuously.
+     * When master play is active, all players loop; effective volume determines audible loudness.
+     * This guarantees 0ms latency when moving sliders.
+     */
     fun startPlayback(soundStates: Map<SoundType, Float>) {
         if (!requestFocus()) {
             Log.w(TAG, "Failed to obtain audio focus")
         }
 
-        for ((type, volume) in soundStates) {
-            currentVolumes[type] = volume
-            val player = players[type] ?: continue
-            val effectiveVol = volume * volumeScale
-            player.setVolume(effectiveVol, effectiveVol)
-
-            if (!player.isPlaying && effectiveVol > 0.001f) {
-                try {
+        for ((type, player) in players) {
+            val vol = soundStates[type] ?: 0f
+            currentVolumes[type] = vol
+            val effective = vol * volumeScale
+            try {
+                player.setVolume(effective, effective)
+                if (!player.isPlaying) {
                     player.start()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error starting player for ${type.name}", e)
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error starting player for ${type.name}", e)
             }
         }
     }
 
+    /**
+     * Instant real-time volume adjustment while dragging slider.
+     */
     fun updateVolume(type: SoundType, volume: Float, isPlaying: Boolean) {
         currentVolumes[type] = volume
         val player = players[type] ?: return
-        val effectiveVol = volume * volumeScale
+        val effective = volume * volumeScale
 
         try {
-            player.setVolume(effectiveVol, effectiveVol)
-            if (isPlaying && effectiveVol > 0.001f && !player.isPlaying) {
+            player.setVolume(effective, effective)
+            if (isPlaying && !player.isPlaying) {
                 if (requestFocus()) {
                     player.start()
                 }
-            } else if (effectiveVol <= 0.001f && player.isPlaying) {
-                player.pause()
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error updating volume for ${type.name}", e)

@@ -43,8 +43,7 @@ fun SleepScreen(
     onToggleMute: (SoundType) -> Unit,
     onSelectPreset: (Preset) -> Unit,
     onSetTimer: (Int) -> Unit,
-    onCancelTimer: () -> Unit,
-    onStopAll: () -> Unit
+    onCancelTimer: () -> Unit
 ) {
     val activeTrackCount = volumes.count { (type, vol) ->
         val isMute = muted[type] == true
@@ -66,12 +65,12 @@ fun SleepScreen(
     Scaffold(
         containerColor = NightBg,
         bottomBar = {
-            // Master Play / Pause Bottom Floating Bar
+            // Thanh điều khiển đáy: Chỉ duy nhất 1 nút thay đổi trạng thái Bật / Tắt
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(28.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(26.dp),
                 color = CardBg,
                 tonalElevation = 8.dp,
                 border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
@@ -79,13 +78,12 @@ fun SleepScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 18.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = if (isPlaying) "Đang phát $activeTrackCount âm thanh" else "Đang tạm dừng",
+                            text = if (isPlaying) "Đang phát $activeTrackCount âm thanh" else "Đang tắt âm thanh",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isPlaying) IndigoLight else TextSecondary,
@@ -93,7 +91,7 @@ fun SleepScreen(
                             )
                         )
                         Text(
-                            text = if (isPlaying) "Vỗ về giấc ngủ êm đềm" else "Nhấn để bắt đầu thư giãn",
+                            text = if (isPlaying) "Vỗ về giấc ngủ êm đềm" else "Chạm nút để bắt đầu phát",
                             style = MaterialTheme.typography.bodySmall.copy(
                                 color = TextMuted,
                                 fontSize = 12.sp
@@ -101,52 +99,31 @@ fun SleepScreen(
                         )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Quick Stop / Reset
-                        IconButton(
-                            onClick = onStopAll,
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(CardBgHover)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Stop,
-                                contentDescription = "Dừng",
-                                tint = TextSecondary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        // Large Play/Pause button
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.scale(if (isPlaying) pulseScale else 1.0f)
-                        ) {
-                            if (isPlaying) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(60.dp)
-                                        .clip(CircleShape)
-                                        .background(IndigoPrimary.copy(alpha = 0.25f))
-                                )
-                            }
-                            FloatingActionButton(
-                                onClick = onTogglePlay,
-                                shape = CircleShape,
-                                containerColor = IndigoPrimary,
-                                contentColor = Color.White,
-                                modifier = Modifier.size(54.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = if (isPlaying) "Tạm dừng" else "Phát",
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                        }
+                    // Nút duy nhất điều khiển Bật / Tắt (Play / Pause)
+                    Button(
+                        onClick = onTogglePlay,
+                        shape = RoundedCornerShape(22.dp),
+                        modifier = Modifier.scale(if (isPlaying) pulseScale else 1.0f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isPlaying) IndigoPrimary else CardBgHover,
+                            contentColor = if (isPlaying) Color.White else IndigoLight
+                        ),
+                        border = if (!isPlaying)
+                            androidx.compose.foundation.BorderStroke(1.dp, IndigoPrimary.copy(alpha = 0.5f))
+                        else null,
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Tạm dừng" else "Bật phát",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isPlaying) "Tạm dừng" else "Bật phát",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
                     }
                 }
             }

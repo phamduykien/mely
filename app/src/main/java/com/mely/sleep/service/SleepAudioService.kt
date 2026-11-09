@@ -8,29 +8,30 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.BitmapFactory
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.support.v4.media.MediaMetadataCompat
+import android.support.v4.media.session.MediaSessionCompat
+import android.support.v4.media.session.PlaybackStateCompat
 import androidx.core.app.NotificationCompat
+import androidx.media.app.NotificationCompat.MediaStyle
 import com.mely.sleep.MainActivity
 import com.mely.sleep.R
 import com.mely.sleep.audio.AudioMixer
 import com.mely.sleep.model.SoundType
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 
 class SleepAudioService : Service() {
 
     private val binder = LocalBinder()
     private lateinit var audioMixer: AudioMixer
     private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private var mediaSession: MediaSessionCompat? = null
 
     private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
@@ -49,6 +50,7 @@ class SleepAudioService : Service() {
     val timerSecondsLeft: StateFlow<Long?> = _timerSecondsLeft.asStateFlow()
 
     private var timerJob: Job? = null
+    private var notifyDebounceJob: Job? = null
 
     inner class LocalBinder : Binder() {
         fun getService(): SleepAudioService = this@SleepAudioService
@@ -58,6 +60,7 @@ class SleepAudioService : Service() {
         super.onCreate()
         audioMixer = AudioMixer(this)
         createNotificationChannel()
+        initMediaSession()
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -67,8 +70,73 @@ class SleepAudioService : Service() {
             ACTION_PLAY -> play()
             ACTION_PAUSE -> pause()
             ACTION_STOP -> stopPlayback()
+            ACTION_TOGGLE -> {
+                if (_isPlaying.value) pause() else play()
+            }
         }
         return START_NOT_STICKY
+    }
+
+    private fun initMediaSession() {
+        mediaSession = MediaSessionCompat(this, "MelySleepSession").apply {
+            setCallback(object : MediaSessionCompat.Callback() {
+                override fun onPlay() {
+                    play()
+                }
+
+                override fun onPause() {
+                    pause()
+                }
+
+                override fun onStop() {
+                    stopPlayback()
+                }
+            })
+            isActive = true
+        }
+    }
+
+    private fun updateMediaSessionState(playing: Boolean) {
+        val state = if (playing) PlaybackStateCompat.STATE_PLAYING else PlaybackStateCompat.STATE_PAUSED
+        val actions = PlaybackStateCompat.ACTION_PLAY or
+                PlaybackStateCompat.ACTION_PAUSE or
+                PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                PlaybackStateCompat.ACTION_STOP
+
+        mediaSession?.setPlaybackState(
+            PlaybackStateCompat.Builder()
+                .setActions(actions)
+                .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1.0f)
+                .build()
+        )
+
+        val activeNames = getActiveSoundsDescription()
+        val artBitmap = try {
+            BitmapFactory.decodeResource(resources, R.drawable.app_icon)
+        } catch (e: Exception) {
+            null
+        }
+
+        mediaSession?.setMetadata(
+            MediaMetadataCompat.Builder()
+                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, "Mêly Sleep")
+                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, activeNames)
+                .putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, artBitmap)
+                .putBitmap(MediaMetadataCompat.METADATA_KEY_DISPLAY_ICON, artBitmap)
+                .build()
+        )
+    }
+
+    private fun getActiveSoundsDescription(): String {
+        val active = _volumes.value.filter { (type, vol) ->
+            _muted.value[type] != true && vol > 0.01f
+        }.keys.map { it.title }
+
+        return if (active.isNotEmpty()) {
+            "Đang phát: " + active.joinToString(", ")
+        } else {
+            "Âm thanh thư giãn ru ngủ"
+        }
     }
 
     private fun createNotificationChannel() {
@@ -80,6 +148,7 @@ class SleepAudioService : Service() {
             ).apply {
                 description = getString(R.string.notification_channel_desc)
                 setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.createNotificationChannel(channel)
@@ -87,6 +156,8 @@ class SleepAudioService : Service() {
     }
 
     private fun buildNotification(playing: Boolean): Notification {
+        updateMediaSessionState(playing)
+
         val contentIntent = PendingIntent.getActivity(
             this,
             0,
@@ -105,48 +176,36 @@ class SleepAudioService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val stopIntent = PendingIntent.getService(
-            this,
-            2,
-            Intent(this, SleepAudioService::class.java).apply {
-                action = ACTION_STOP
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val activeSounds = _volumes.value.filter { entry ->
-            val isMute = _muted.value[entry.key] == true
-            !isMute && entry.value > 0.05f
-        }.keys.joinToString(", ") { it.title }
-
-        val contentText = if (activeSounds.isNotEmpty()) {
-            "Đang phát: $activeSounds"
-        } else {
-            "Âm thanh thư giãn giúp ngủ ngon"
-        }
-
         val timerText = _timerSecondsLeft.value?.let {
             val m = it / 60
             val s = it % 60
-            " • Tự tắt: %02d:%02d".format(m, s)
+            " • Tắt sau: %02d:%02d".format(m, s)
         } ?: ""
+
+        val artBitmap = try {
+            BitmapFactory.decodeResource(resources, R.drawable.app_icon)
+        } catch (e: Exception) {
+            null
+        }
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setLargeIcon(artBitmap)
             .setContentTitle("Mêly Sleep" + timerText)
-            .setContentText(contentText)
+            .setContentText(getActiveSoundsDescription())
             .setContentIntent(contentIntent)
             .setOngoing(playing)
             .setOnlyAlertOnce(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .addAction(
                 if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
-                if (playing) "Tạm dừng" else "Phát",
+                if (playing) "Tạm dừng" else "Bật phát",
                 playPauseIntent
             )
-            .addAction(
-                android.R.drawable.ic_menu_close_clear_cancel,
-                "Dừng",
-                stopIntent
+            .setStyle(
+                MediaStyle()
+                    .setMediaSession(mediaSession?.sessionToken)
+                    .setShowActionsInCompactView(0)
             )
 
         return builder.build()
@@ -186,12 +245,57 @@ class SleepAudioService : Service() {
         stopSelf()
     }
 
+    /**
+     * Slider dragging calls this continuously:
+     * 1. Updates mixer volume immediately (real-time audio response, 0 lag).
+     * 2. Updates state flow.
+     * 3. Debounces notification update so dragging doesn't overwhelm binder IPC.
+     */
     fun setSoundVolume(type: SoundType, volume: Float) {
         val updated = _volumes.value.toMutableMap()
-        updated[type] = volume.coerceIn(0f, 1f)
+        val clamped = volume.coerceIn(0f, 1f)
+        updated[type] = clamped
         _volumes.value = updated
 
-        val effective = if (_muted.value[type] == true) 0f else updated[type] ?: 0f
+        // If user drags slider up from 0 while muted, automatically unmute so sound is heard
+        if (clamped > 0.01f && _muted.value[type] == true) {
+            val mutedCopy = _muted.value.toMutableMap()
+            mutedCopy[type] = false
+            _muted.value = mutedCopy
+        }
+
+        val effective = if (_muted.value[type] == true) 0f else clamped
+        audioMixer.updateVolume(type, effective, _isPlaying.value)
+
+        // Debounce notification update (500ms)
+        if (_isPlaying.value) {
+            notifyDebounceJob?.cancel()
+            notifyDebounceJob = serviceScope.launch {
+                delay(500L)
+                val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                manager.notify(NOTIFICATION_ID, buildNotification(true))
+            }
+        }
+    }
+
+    /**
+     * Clicking speaker icon toggles mute/unmute for that sound immediately.
+     */
+    fun toggleMute(type: SoundType) {
+        val updatedMuted = _muted.value.toMutableMap()
+        val isCurrentlyMuted = updatedMuted[type] ?: false
+        val newMuted = !isCurrentlyMuted
+        updatedMuted[type] = newMuted
+        _muted.value = updatedMuted
+
+        // If unmuting but volume was 0%, restore to default volume so sound is heard immediately
+        val volMap = _volumes.value.toMutableMap()
+        if (!newMuted && (volMap[type] ?: 0f) < 0.05f) {
+            volMap[type] = type.defaultVolume
+            _volumes.value = volMap
+        }
+
+        val effective = if (newMuted) 0f else (volMap[type] ?: 0f)
         audioMixer.updateVolume(type, effective, _isPlaying.value)
 
         if (_isPlaying.value) {
@@ -200,33 +304,29 @@ class SleepAudioService : Service() {
         }
     }
 
-    fun toggleMute(type: SoundType) {
-        val updated = _muted.value.toMutableMap()
-        val newState = !(updated[type] ?: false)
-        updated[type] = newState
-        _muted.value = updated
-
-        val vol = if (newState) 0f else (_volumes.value[type] ?: 0f)
-        audioMixer.updateVolume(type, vol, _isPlaying.value)
-
-        if (_isPlaying.value) {
-            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            manager.notify(NOTIFICATION_ID, buildNotification(true))
-        }
-    }
-
+    /**
+     * Applying a preset ONLY updates the slider values below.
+     * Does NOT force play if the app is paused.
+     * If playing, the audio updates in real time to match the preset sliders.
+     */
     fun applyPreset(presetMap: Map<SoundType, Float>) {
-        val current = _volumes.value.toMutableMap()
+        val currentVols = _volumes.value.toMutableMap()
+        val currentMuted = _muted.value.toMutableMap()
+
         for ((type, vol) in presetMap) {
-            current[type] = vol
-            val effective = if (_muted.value[type] == true) 0f else vol
+            currentVols[type] = vol
+            // If preset specifies volume > 0, ensure it is unmuted
+            if (vol > 0.01f) {
+                currentMuted[type] = false
+            }
+            val effective = if (currentMuted[type] == true) 0f else vol
             audioMixer.updateVolume(type, effective, _isPlaying.value)
         }
-        _volumes.value = current
+        _volumes.value = currentVols
+        _muted.value = currentMuted
 
-        if (!_isPlaying.value) {
-            play()
-        } else {
+        // Do NOT call play() if paused! Only update notification if currently playing.
+        if (_isPlaying.value) {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             manager.notify(NOTIFICATION_ID, buildNotification(true))
         }
@@ -244,7 +344,6 @@ class SleepAudioService : Service() {
                 remaining--
                 _timerSecondsLeft.value = remaining
 
-                // Fade out smoothly in the last 15 seconds
                 if (remaining <= 15) {
                     val fadeFraction = remaining / 15.0f
                     audioMixer.setMasterFadeScale(fadeFraction)
@@ -277,6 +376,8 @@ class SleepAudioService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         timerJob?.cancel()
+        notifyDebounceJob?.cancel()
+        mediaSession?.release()
         audioMixer.release()
     }
 
@@ -287,5 +388,6 @@ class SleepAudioService : Service() {
         const val ACTION_PLAY = "com.mely.sleep.action.PLAY"
         const val ACTION_PAUSE = "com.mely.sleep.action.PAUSE"
         const val ACTION_STOP = "com.mely.sleep.action.STOP"
+        const val ACTION_TOGGLE = "com.mely.sleep.action.TOGGLE"
     }
 }

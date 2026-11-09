@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
@@ -33,11 +34,11 @@ fun SoundSliderCard(
     onToggleMute: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isActivelyEmitting = isMasterPlaying && !isMuted && volume > 0.01f
-    val percent = (volume * 100).toInt()
+    val isActivelyAudible = isMasterPlaying && !isMuted && volume > 0.01f
+    val percent = if (isMuted) 0 else (volume * 100).toInt()
 
     val cardBorderColor by animateColorAsState(
-        targetValue = if (isActivelyEmitting) soundType.accentColor.copy(alpha = 0.45f) else CardBorder,
+        targetValue = if (isActivelyAudible) soundType.accentColor.copy(alpha = 0.5f) else CardBorder,
         label = "border_color"
     )
 
@@ -51,20 +52,20 @@ fun SoundSliderCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 16.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
-            // Header: Icon + Titles + Mute Button
+            // Header Row: Sound Category Icon + Titles + Speaker Toggle Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Sound Icon inside glowing circle
+                // Sound category icon
                 Box(
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(42.dp)
                         .clip(CircleShape)
                         .background(
-                            if (isActivelyEmitting)
+                            if (isActivelyAudible)
                                 soundType.accentColor.copy(alpha = 0.2f)
                             else
                                 CardBorder.copy(alpha = 0.5f)
@@ -74,12 +75,12 @@ fun SoundSliderCard(
                     Icon(
                         imageVector = soundType.icon,
                         contentDescription = soundType.title,
-                        tint = if (isActivelyEmitting) soundType.accentColor else TextMuted,
-                        modifier = Modifier.size(24.dp)
+                        tint = if (isActivelyAudible) soundType.accentColor else TextMuted,
+                        modifier = Modifier.size(22.dp)
                     )
                 }
 
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(12.dp))
 
                 // Title + Subtitle
                 Column(modifier = Modifier.weight(1f)) {
@@ -88,7 +89,7 @@ fun SoundSliderCard(
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontWeight = FontWeight.SemiBold,
                             color = TextPrimary,
-                            fontSize = 17.sp
+                            fontSize = 16.sp
                         )
                     )
                     Text(
@@ -101,60 +102,97 @@ fun SoundSliderCard(
                     )
                 }
 
-                // Volume percentage pill
+                // Volume % badge (clickable to toggle mute as well)
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(
                             if (isMuted) Color(0x33EF4444)
                             else soundType.accentColor.copy(alpha = 0.15f)
                         )
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .clickable { onToggleMute() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = if (isMuted) "Tắt tiếng" else "$percent%",
-                        style = MaterialTheme.typography.labelMedium.copy(
+                        text = if (isMuted) "TẮT" else "$percent%",
+                        style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
                             color = if (isMuted) Color(0xFFEF4444) else soundType.accentColor,
-                            fontSize = 12.sp
+                            fontSize = 11.sp
                         )
                     )
                 }
 
                 Spacer(modifier = Modifier.width(6.dp))
 
-                // Mute toggle button
-                IconButton(
+                // Prominent Speaker Icon Button: Bật/Tắt âm thanh này ngay lập tức
+                FilledTonalIconButton(
                     onClick = onToggleMute,
-                    modifier = Modifier.size(36.dp)
+                    shape = CircleShape,
+                    colors = IconButtonDefaults.filledTonalIconButtonColors(
+                        containerColor = if (isMuted)
+                            Color(0x22EF4444)
+                        else
+                            soundType.accentColor.copy(alpha = 0.18f),
+                        contentColor = if (isMuted)
+                            Color(0xFFEF4444)
+                        else
+                            soundType.accentColor
+                    ),
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         imageVector = if (isMuted) Icons.Default.VolumeOff else Icons.Default.VolumeUp,
-                        contentDescription = "Bật/Tắt tiếng",
-                        tint = if (isMuted) Color(0xFFEF4444) else TextMuted,
-                        modifier = Modifier.size(20.dp)
+                        contentDescription = if (isMuted) "Bật âm thanh" else "Tắt âm thanh",
+                        modifier = Modifier.size(22.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Slider
-            Slider(
-                value = volume,
-                onValueChange = { newVol ->
-                    onVolumeChange(newVol)
-                },
-                valueRange = 0f..1f,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(30.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = if (isMuted) TextMuted else soundType.accentColor,
-                    activeTrackColor = if (isMuted) TextMuted.copy(alpha = 0.5f) else soundType.accentColor,
-                    inactiveTrackColor = CardBorder
+            // Slider: Kéo là thay đổi âm thanh real-time tức thì
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Mini speaker at slider start
+                Icon(
+                    imageVector = Icons.Default.VolumeMute,
+                    contentDescription = null,
+                    tint = TextMuted,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .clickable { onVolumeChange(0f) }
                 )
-            )
+
+                Slider(
+                    value = if (isMuted) 0f else volume,
+                    onValueChange = { newVol ->
+                        onVolumeChange(newVol)
+                    },
+                    valueRange = 0f..1f,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
+                        .height(36.dp),
+                    colors = SliderDefaults.colors(
+                        thumbColor = if (isMuted) TextMuted else soundType.accentColor,
+                        activeTrackColor = if (isMuted) TextMuted.copy(alpha = 0.3f) else soundType.accentColor,
+                        inactiveTrackColor = CardBorder
+                    )
+                )
+
+                // High speaker at slider end
+                Icon(
+                    imageVector = Icons.Default.VolumeUp,
+                    contentDescription = null,
+                    tint = if (isMuted) TextMuted else soundType.accentColor,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable { onVolumeChange(1f) }
+                )
+            }
         }
     }
 }
